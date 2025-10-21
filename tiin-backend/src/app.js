@@ -17,7 +17,6 @@ app.get("/", (req, res) => {
   res.send("Olá Mundo");
 });
 
-
 // ==================== USUÁRIOS ====================
 
 app.get("/usuarios", async (req, res) => {
@@ -159,17 +158,17 @@ app.get("/logs", async (req, res) => {
   res.send(results);
 });
 
+
+// Alterar app.post de logs para adicionar id_usuario
+
 app.post("/logs", async (req, res) => {
   try {
     const { body } = req;
+    const { categoria, horas_trabalhadas, linhas_codigo, bugs_corrigidos, id_usuario } = body;
+
     const [results] = await pool.query(
-      "INSERT INTO lgs (categoria, horas_trabalhadas, linhas_codigo, bugs_corrigidos) VALUES (?, ?, ?, ?)",
-      [
-        body.categoria,
-        body.horas_trabalhadas,
-        body.linhas_codigo,
-        body.bugs_corrigidos,
-      ]
+      "INSERT INTO lgs (categoria, horas_trabalhadas, linhas_codigo, bugs_corrigidos, id_usuario) VALUES (?, ?, ?, ?, ?)",
+      [categoria, horas_trabalhadas, linhas_codigo, bugs_corrigidos, id_usuario]
     );
 
     const [logCriado] = await pool.query(
@@ -184,14 +183,22 @@ app.post("/logs", async (req, res) => {
 });
 
 
+
 // ==================== LIKES ====================
 
-app.get("/likes", async (req, res) => {
+app.get("/likes/:id", async (req, res) => {
   try {
-    const [results] = await pool.query("SELECT * FROM likes");
-    res.send(results);
+    const { id } = req.params;
+    const [results] = await pool.query("SELECT * FROM likes WHERE id = ?", [id]);
+
+    if (results.length === 0) {
+      return res.status(404).json({ message: "Like não encontrado." });
+    }
+
+    res.json(results[0]);
   } catch (error) {
-    console.log(error);
+    console.error(error);
+    res.status(500).json({ error: "Erro ao buscar like." });
   }
 });
 
@@ -305,10 +312,137 @@ app.post("/comments", async (req, res) => {
   }
 });
 
+//pwgar likes e comments
 
+app.get("/logs/:id/details", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Buscar log
+    const [logRows] = await pool.query("SELECT * FROM lgs WHERE id = ?", [id]);
+    if (logRows.length === 0) {
+      return res.status(404).json({ error: "Log não encontrado." });
+    }
+    const log = logRows[0];
+
+    // Buscar likes
+    const [likeRows] = await pool.query("SELECT * FROM likes WHERE id_log = ?", [id]);
+
+    // Buscar comentários
+    const [commentRows] = await pool.query(`
+      SELECT c.id, c.conteudo, c.data_criacao, u.nome AS usuario
+      FROM comments c
+      JOIN usuario u ON c.id_user = u.id
+      WHERE c.id_log = ?
+      ORDER BY c.data_criacao DESC
+    `, [id]);
+
+    res.json({
+      log,
+      likes: likeRows,
+      comments: commentRows,
+    });
+  } catch (error) {
+    console.error("Erro ao buscar detalhes do log:", error);
+    res.status(500).json({ error: "Erro ao buscar detalhes do log" });
+  }
+});
+
+app.get("/logs/:id/comments", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Verifica se o log existe
+    const [logRows] = await pool.query("SELECT * FROM lgs WHERE id = ?", [id]);
+    if (logRows.length === 0) {
+      return res.status(404).json({ error: "Log não encontrado." });
+    }
+
+    // Busca os comentários relacionados ao log
+    const [commentRows] = await pool.query(`
+      SELECT c.id, c.conteudo, c.data_criacao, u.nome AS usuario
+      FROM comments c
+      JOIN usuario u ON c.id_user = u.id
+      WHERE c.id_log = ?
+      ORDER BY c.data_criacao DESC
+    `, [id]);
+
+    res.json(commentRows);
+  } catch (error) {
+    console.error("Erro ao buscar comentários do log:", error);
+    res.status(500).json({ error: "Erro ao buscar comentários do log" });
+  }
+});
+
+//deletar like com query params:
+
+app.delete("/likes/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    await pool.query("DELETE FROM likes WHERE id = ?", [id]);
+    res.status(200).send("Like deletado!");
+  } catch (error) {
+    console.log(error);
+  }
+});
+
+app.delete("/comments/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    await pool.query("DELETE FROM comments WHERE id = ?", [id]);
+    res.status(200).send("Comentário deletado!");
+  } catch (error) {
+    console.log(error);
+  }
+});
 
 // ==================== SERVIDOR ====================
 
 app.listen(3000, () => {
   console.log("Servidor rodando na porta: 3000");
 });
+
+//Banco de dados MYSQL completo:
+
+/*
+CREATE DATABASE devhub;
+USE devhub;
+CREATE TABLE usuario (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  nome VARCHAR(100) NOT NULL,
+  idade INT,
+  email VARCHAR(100) UNIQUE,
+  senha VARCHAR(100)
+);
+CREATE TABLE lgs (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  categoria VARCHAR(100) NOT NULL,
+  horas_trabalhadas INT,
+  linhas_codigo INT,
+  bugs_corrigidos INT
+);
+CREATE TABLE likes (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  id_log INT,
+  id_user INT,
+  qnt_comments INT DEFAULT 0,
+  FOREIGN KEY (id_log) REFERENCES lgs(id),
+  FOREIGN KEY (id_user) REFERENCES usuario(id)
+);
+CREATE TABLE comments (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  id_log INT,
+  id_user INT,
+  conteudo TEXT NOT NULL,
+  data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (id_log) REFERENCES lgs(id),
+  FOREIGN KEY (id_user) REFERENCES usuario(id)
+);
+
+//Alterar tabela de logs para adicionar id_usuario
+
+ALTER TABLE lgs ADD COLUMN id_usuario INT,
+ADD FOREIGN KEY (id_usuario) REFERENCES usuario(id);
+
+
+*/
