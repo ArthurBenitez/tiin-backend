@@ -396,6 +396,63 @@ app.delete("/comments/:id", async (req, res) => {
   }
 });
 
+// CRIAÇÃO DE NOVOS ENDPOINTS NA API:
+
+// - Endpoint para listar total de horas trabalhadas por todos usuário.
+app.get("/logs/total-horas", async (req, res) => {
+  try {
+    const [results] = await pool.query("SELECT SUM(horas_trabalhadas) AS total_horas FROM lgs");
+    res.json(results[0]);
+  } catch (error) {
+    console.error("Erro ao buscar total de horas trabalhadas:", error);
+    res.status(500).json({ error: "Erro ao buscar total de horas trabalhadas" });
+  }
+});
+
+//exemplo de busca no thunder client:
+
+// GET http://localhost:3000/usuarios/1/total-logs
+
+// - Endpoint de total de logs por usuário:
+
+app.get("/usuarios/:id/total-logs", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const [results] = await pool.query(
+      "SELECT COUNT(*) AS total_logs FROM lgs WHERE id_usuario = ?",
+      [id]
+    );
+    res.json(results[0]);
+  } catch (error) {
+    console.error("Erro ao buscar total de logs por usuário:", error);
+    res.status(500).json({ error: "Erro ao buscar total de logs por usuário" });
+  }
+});
+
+//exemplo de busca no thunder client:
+// GET http://localhost:3000/usuarios/1/total-bugs
+
+// - Endpoint de total de bugs corrigidos por usuário:
+
+app.get("/usuarios/:id/total-bugs", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const [results] = await pool.query(
+      "SELECT SUM(bugs_corrigidos) AS total_bugs FROM lgs WHERE id_usuario = ?",
+      [id]
+    );
+    res.json(results[0]);
+  } catch (error) {
+    console.error("Erro ao buscar total de bugs corrigidos por usuário:", error);
+    res.status(500).json({ error: "Erro ao buscar total de bugs corrigidos por usuário" });
+  }
+});
+
+
+//exemplo de busca no thunder client:
+// GET http://localhost:3000/usuarios/1/total-linhas-codigo
+
+
 // ==================== SERVIDOR ====================
 
 app.listen(3000, () => {
